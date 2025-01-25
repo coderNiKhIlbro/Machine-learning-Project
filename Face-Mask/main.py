@@ -10,7 +10,6 @@ app = Flask(__name__)
 
 # Global variables
 video_stream_active = False
-camera = cv2.VideoCapture(0)
 
 def preprocess_image(frame):
     """ Preprocess the image to match model input. """
@@ -21,7 +20,9 @@ def preprocess_image(frame):
 
 # Function to generate video frames
 def generate_frames():
-    global video_stream_active, camera
+    camera = cv2.VideoCapture(0)
+    if not camera.isOpened():
+        return "Error: Could not access the camera", 500
     while True:
         success, frame = camera.read()  # Read the camera frame
         if not success:
@@ -31,9 +32,11 @@ def generate_frames():
             prediction = model.predict(processed_frame)
             predicted_class = 'Mask On' if prediction[0] > 0.5 else 'Please Wear Mask'
 
+            color = {'Mask On':(0,255,0),'Please Wear Mask':(0,0,255)}
+
             # Add text to the frame
             cv2.putText(frame, f"Prediction: {predicted_class}", (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,color[predicted_class], 2)
 
             # Encode frame to JPEG format
             ret, buffer = cv2.imencode('.jpg', frame)
@@ -42,6 +45,7 @@ def generate_frames():
             # Yield frame in HTTP format
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    camera.release()
 
 @app.route('/')
 def index():
@@ -70,4 +74,4 @@ def video_feed():
 #     return jsonify({"status": "Video stream stopped"}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False,port=5000,host='0.0.0.0')
